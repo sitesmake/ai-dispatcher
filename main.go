@@ -19,7 +19,7 @@ func (p Provider) Ask(question string) (string, error) {
 		return "", errors.New("empty question")
 	}
 
-	return "hello from api: " + question, nil
+	return "[" + p.Name + "/" + p.Model + "] " + "hello from api: " + question, nil
 }
 
 type OpenAI struct {
@@ -31,20 +31,20 @@ type Anthropic struct {
 	APIVersion string
 }
 
-func (p Anthropic) Ask(question string) (string, error) {
+func (a Anthropic) Ask(question string) (string, error) {
 	if question == "" {
 		return "", errors.New("empty question")
 	}
 
-	return "hello from api: " + p.APIVersion + " " + question, nil
+	return "[" + a.Name + "/" + a.Model + "] " + "hello from api: " + a.APIVersion + " " + question, nil
 }
 
-type AIService interface {
+type Asker interface {
 	Ask(question string) (string, error)
 }
 
-func useService(s AIService, question string) (string, error) {
-	out, err := s.Ask(question)
+func useService(a Asker, question string) (string, error) {
+	out, err := a.Ask(question)
 	if err != nil {
 		return "", err
 	}
@@ -57,12 +57,8 @@ func main() {
 
 	fmt.Println(request, provider)
 
-	answer1, err := provider.Ask("")
-
-	if err != nil {
+	if _, err := provider.Ask(""); err != nil {
 		fmt.Println("Ошибка:", err)
-	} else {
-		fmt.Println(answer1)
 	}
 
 	answer2, err := provider.Ask("whats time oclock?")
