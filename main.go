@@ -1,34 +1,34 @@
 package main
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 const fallbackProvider = "anthropic"
 
 // TODO (шаг 1): объяви здесь свои ошибки — именованные и кастомную.
+
+var (
+	ErrEmptyQuestion    = errors.New("пустой вопрос")
+	ErrUnknownProvider  = errors.New("неизвестный провайдер")
+	ErrProviderDisabled = errors.New("провайдер выключен")
+)
+
+type APIError struct {
+	Provider string
+	Status   int
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("%s: ошибка API, код %d", e.Provider, e.Status)
+}
 
 type Provider struct {
 	Name    string
 	Model   string
 	Enabled bool
 	Status  int
-}
-
-// check проверяет, может ли провайдер ответить на вопрос.
-//
-// TODO (шаг 1): верни ошибку в ситуациях 2–6 из задания:
-//   - вопрос пустой;
-//   - провайдер выключен (Enabled == false);
-//   - API ответил не 200 (Status != 200).
-func (p Provider) check(question string) error {
-	return nil
-}
-
-func (p Provider) Ask(question string) (string, error) {
-	if err := p.check(question); err != nil {
-		return "", err
-	}
-
-	return "[" + p.Name + "/" + p.Model + "] " + "hello from api: " + question, nil
 }
 
 type OpenAI struct {
@@ -40,16 +40,49 @@ type Anthropic struct {
 	APIVersion string
 }
 
+type Asker interface {
+	Ask(question string) (string, error)
+}
+
+// check проверяет, может ли провайдер ответить на вопрос.
+//
+// TODO (шаг 1): верни ошибку в ситуациях 2–6 из задания:
+//   - вопрос пустой;
+//   - провайдер выключен (Enabled == false);
+//   - API ответил не 200 (Status != 200).
+func (p Provider) check(question string) error {
+	if question == "" {
+		return fmt.Errorf("check: %w", ErrEmptyQuestion)
+	}
+
+	if !p.Enabled {
+		return fmt.Errorf("check: %w", ErrProviderDisabled)
+	}
+
+	if p.Status != 200 {
+		return &APIError{
+			Provider: p.Name,
+			Status:   p.Status,
+		}
+	}
+
+	return nil
+}
+
+func (p Provider) Ask(question string) (string, error) {
+	if err := p.check(question); err != nil {
+		return "", fmt.Errorf("Ask: %w", err)
+	}
+
+	return "[" + p.Name + "/" + p.Model + "] " + "hello from api: " + question, nil
+}
+
 func (a Anthropic) Ask(question string) (string, error) {
 	if err := a.check(question); err != nil {
-		return "", err
+		return "", fmt.Errorf("Ask: %w", err)
 	}
 
 	return "[" + a.Name + "/" + a.Model + "] " + "hello from api: " + a.APIVersion + " " + question, nil
-}
-
-type Asker interface {
-	Ask(question string) (string, error)
 }
 
 // findProvider ищет провайдера по имени.
@@ -58,7 +91,27 @@ type Asker interface {
 // Сейчас функция в этом случае возвращает nil без ошибки — из-за этого
 // программа падает с паникой на запросе 3.
 func findProvider(providers map[string]Asker, name string) (Asker, error) {
-	return providers[name], nil
+	provider, ok := providers[name]
+
+	if !ok {
+		return nil, fmt.Errorf("findProvider %s: %w", name, ErrUnknownProvider)
+	}
+
+	return provider, nil
+}
+
+func fallbackDispatch(providers map[string]Asker, question string) (string, error) {
+	provider, err := findProvider(providers, fallbackProvider)
+	if err != nil {
+		return "", fmt.Errorf("fallbackDispatch: %w", err)
+	}
+
+	answer, err := provider.Ask(question)
+	if err != nil {
+		return "", fmt.Errorf("fallbackDispatch: %w", err)
+	}
+
+	return answer, nil
 }
 
 // dispatch находит провайдера и задаёт ему вопрос.
@@ -67,7 +120,7 @@ func dispatch(providers map[string]Asker, name string, question string) (string,
 	if err != nil {
 		// TODO (шаг 2): реши, что делать с этой ошибкой — обработать здесь
 		// или вернуть выше. Если возвращаешь — добавь контекст.
-		return "", err
+		return "", fmt.Errorf("dispatch: %w", err)
 	}
 
 	answer, err := provider.Ask(question)
@@ -77,7 +130,16 @@ func dispatch(providers map[string]Asker, name string, question string) (string,
 		// нужно задать тот же вопрос провайдеру fallbackProvider (ситуация 3).
 		// Если и он не ответил — это ситуация 7.
 		// Остальные ошибки верни выше с контекстом.
-		return "", err
+		if errors.Is(err, ErrProviderDisabled) {
+			answer, err = fallbackDispatch(providers, question)
+			if err != nil {
+				return "", fmt.Errorf("dispatch: %w", err)
+			}
+
+			return answer, nil
+		}
+
+		return "", fmt.Errorf("dispatch: %w", err)
 	}
 
 	return answer, nil
@@ -89,6 +151,27 @@ func dispatch(providers map[string]Asker, name string, question string) (string,
 // в задании (ситуации 1, 2, 4, 5, 6). Для всех остальных ошибок оставь
 // реакцию ниже — это ситуация 7.
 func react(err error) string {
+	if errors.Is(err, ErrEmptyQuestion) {
+		return "запрос отброшен: пустой вопрос, повторять бессмысленно"
+	}
+
+	if errors.Is(err, ErrUnknownProvider) {
+		return "запрос отброшен: неизвестный провайдер"
+	}
+
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		switch apiErr.Status {
+		case 429:
+			return fmt.Sprintf("%s: слишком много запросов, повторим позже", apiErr.Provider)
+		case 401:
+			return fmt.Sprintf("%s: проверь ключ доступа", apiErr.Provider)
+		default:
+			return fmt.Sprintf("%s: неизвестная ошибка API, код %d",
+				apiErr.Provider, apiErr.Status)
+		}
+	}
+
 	return "не удалось обработать запрос: " + err.Error()
 }
 
