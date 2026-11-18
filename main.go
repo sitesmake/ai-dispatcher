@@ -52,11 +52,11 @@ type Asker interface {
 //   - API ответил не 200 (Status != 200).
 func (p Provider) check(question string) error {
 	if question == "" {
-		return fmt.Errorf("check: %w", ErrEmptyQuestion)
+		return ErrEmptyQuestion
 	}
 
 	if !p.Enabled {
-		return fmt.Errorf("check: %w", ErrProviderDisabled)
+		return ErrProviderDisabled
 	}
 
 	if p.Status != 200 {
@@ -92,7 +92,6 @@ func (a Anthropic) Ask(question string) (string, error) {
 // программа падает с паникой на запросе 3.
 func findProvider(providers map[string]Asker, name string) (Asker, error) {
 	provider, ok := providers[name]
-
 	if !ok {
 		return nil, fmt.Errorf("findProvider %s: %w", name, ErrUnknownProvider)
 	}
@@ -120,7 +119,7 @@ func dispatch(providers map[string]Asker, name string, question string) (string,
 	if err != nil {
 		// TODO (шаг 2): реши, что делать с этой ошибкой — обработать здесь
 		// или вернуть выше. Если возвращаешь — добавь контекст.
-		return "", fmt.Errorf("dispatch: %w", err)
+		return "", fmt.Errorf("findProvider: %w", err)
 	}
 
 	answer, err := provider.Ask(question)
@@ -133,7 +132,7 @@ func dispatch(providers map[string]Asker, name string, question string) (string,
 		if errors.Is(err, ErrProviderDisabled) {
 			answer, err = fallbackDispatch(providers, question)
 			if err != nil {
-				return "", fmt.Errorf("dispatch: %w", err)
+				return "", fmt.Errorf("fallbackDispatch: %w", err)
 			}
 
 			return answer, nil
