@@ -23,7 +23,7 @@ func countByValue(p Provider) {
 // TODO (шаг 1.1): увеличь p.Calls на 1 и напечатай адрес, который лежит в p, через %p.
 func countByPointer(p *Provider) {
 	p.Calls++
-	fmt.Printf("адрес p: %p\n", &p)
+	fmt.Printf("адрес p: %p\n", p)
 }
 
 // TODO (шаг 1.2): создай внутри функции Provider с именем name
@@ -48,12 +48,16 @@ func step1() {
 	// Вызови countByValue, напечатай Calls.
 	// Вызови countByPointer, напечатай Calls.
 	google := Provider{Name: "google"}
+	fmt.Printf("адрес провайдера google: %p\n", &google)
+
 	countByValue(google)
+	fmt.Println(google.Calls)
 	countByPointer(&google)
+	fmt.Println(google.Calls)
 
 	// TODO (шаг 1.2): вызови localProvider и newProvider, напечатай результаты.
-	fmt.Printf("%s\n", localProvider("google"))
-	fmt.Printf("%p\n", newProvider("google"))
+	fmt.Printf("%d\n", localProvider("google"))
+	fmt.Printf("%v\n", *newProvider("google"))
 }
 
 // ---------- Шаг 2. Массив и слайс ----------
@@ -129,13 +133,27 @@ func fillNoPrealloc(n int) []int {
 // TODO (шаг 3.1): собери такой же слайс из n чисел,
 // но выдели память под него один раз, до цикла.
 func fillPrealloc(n int) []int {
-	return nil
+	result := make([]int, 0, n)
+	for i := 0; i < n; i++ {
+		result = append(result, i)
+	}
+	return result
 }
 
 // TODO (шаг 3.2): добавляй в слайс n чисел через append и считай,
 // сколько раз за это время изменилась ёмкость (cap). Верни это число.
 func countGrowths(n int) int {
-	return 0
+	changes := 0
+	slice := []int{}
+	for i := 0; i < n; i++ {
+		old_cap := cap(slice)
+		slice = append(slice, i)
+		new_cap := cap(slice)
+		if new_cap != old_cap {
+			changes++
+		}
+	}
+	return changes
 }
 
 // measure уже готова, менять её не нужно.
@@ -184,5 +202,5 @@ func step3() {
 func main() {
 	step1()
 	step2()
-	// step3()
+	step3()
 }
