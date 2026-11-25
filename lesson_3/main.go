@@ -83,11 +83,11 @@ func step2() {
 	fmt.Println(days)
 	fmt.Println(week)
 
-	slice_days := []string{"mon", "tue", "wed"}
-	slice_week := slice_days
-	slice_week[0] = "sun"
-	fmt.Println(slice_days)
-	fmt.Println(slice_week)
+	sliceDays := []string{"mon", "tue", "wed"}
+	sliceWeek := sliceDays
+	sliceWeek[0] = "sun"
+	fmt.Println(sliceDays)
+	fmt.Println(sliceWeek)
 
 	// TODO (шаг 2.1): напечатай unsafe.Sizeof для:
 	//   - массива [3]string и массива [100]string;
@@ -144,12 +144,12 @@ func fillPrealloc(n int) []int {
 // сколько раз за это время изменилась ёмкость (cap). Верни это число.
 func countGrowths(n int) int {
 	changes := 0
-	slice := []int{}
+	var slice []int
 	for i := 0; i < n; i++ {
-		old_cap := cap(slice)
+		oldCap := cap(slice)
 		slice = append(slice, i)
-		new_cap := cap(slice)
-		if new_cap != old_cap {
+		newCap := cap(slice)
+		if newCap != oldCap {
 			changes++
 		}
 	}
